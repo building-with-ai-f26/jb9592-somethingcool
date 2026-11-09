@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tailor</title>
+  <style>
+    :root { --bg:#fafafa; --card:#fff; --text:#111827; --muted:#4b5563; --border:#e5e7eb; --accent:#1d63dc; --warn-bg:#fff7ed; --warn:#9a3412; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
+    .wrap { max-width:1200px; margin:0 auto; padding:32px 24px 64px; }
+    h1 { margin:0 0 4px; font-size:28px; letter-spacing:-0.02em; }
+    .sub { color:var(--muted); margin:0 0 24px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px; }
+    .row { display:flex; gap:10px; }
+    input[type=url] { flex:1; padding:10px 12px; font-size:15px; border:1px solid var(--border); border-radius:8px; }
+    button { padding:10px 18px; font-size:15px; font-weight:600; border-radius:8px; border:none; background:var(--accent); color:#fff; cursor:pointer; }
+    button.secondary { background:var(--card); color:var(--text); border:1px solid var(--border); }
+    button:disabled { opacity:.5; cursor:wait; }
+    textarea { width:100%; font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; padding:12px; border:1px solid var(--border); border-radius:8px; resize:vertical; }
+    .status { margin-top:12px; color:var(--muted); }
+    .error { color:#b91c1c; }
+    .hidden { display:none; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+    @media (max-width:800px) { .grid { grid-template-columns:1fr; } .row { flex-direction:column; } }
+    .grid textarea { min-height:560px; }
+    .doc-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+    h2 { font-size:17px; margin:0; }
+    .tags span { display:inline-block; background:#eff6ff; color:#1e40af; font-size:12px; padding:2px 8px; border-radius:999px; margin:2px 4px 2px 0; }
+    .warn { background:var(--warn-bg); color:var(--warn); border-radius:8px; padding:10px 12px; margin-top:12px; }
+    ul { margin:8px 0 0; padding-left:20px; }
+    .meta { font-size:12px; color:var(--muted); }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Tailor</h1>
+  <p class="sub">Paste a job posting URL. Get your own resume and cover letter tailored to it. Nothing invented.</p>
+
+  <div class="card">
+    <div class="row">
+      <input id="url" type="url" placeholder="https://jobs.ashbyhq.com/... or Greenhouse / Lever link" />
+      <button id="go">Tailor it</button>
+    </div>
+    <div id="paste-box" class="hidden" style="margin-top:14px">
+      <p class="error" id="fetch-error"></p>
+      <textarea id="job-text" rows="10" placeholder="Paste the full job description here"></textarea>
+      <div style="margin-top:8px"><button id="go-paste">Tailor with pasted description</button></div>
+    </div>
+    <div id="status" class="status"></div>
+  </div>
+
+  <div id="results" class="hidden">
+    <div class="card">
+      <h2 id="job-title"></h2>
+      <div class="tags" id="keywords" style="margin-top:8px"></div>
+      <h3 style="font-size:15px;margin:16px 0 0">What changed and why</h3>
+      <ul id="changes"></ul>
+      <div id="gaps" class="warn hidden"></div>
+      <div id="numbers" class="warn hidden"></div>
+      <p class="meta" id="usage" style="margin-top:12px"></p>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="doc-head"><h2>Tailored resume</h2><button class="secondary" data-dl="resume">Download .md</button></div>
+        <textarea id="resume"></textarea>
+      </div>
+      <div class="card">
+        <div class="doc-head"><h2>Tailored cover letter</h2><button class="secondary" data-dl="cover">Download .md</button></div>
+        <textarea id="cover"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let company = "job";
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+async function run(payload) {
+  const buttons = [$("go"), $("go-paste")];
+  buttons.forEach(b => b.disabled = true);
+  $("status").className = "status";
+  $("status").textContent = "Reading the posting and rewriting… (about a minute)";
+  const t0 = performance.now();
+  try {
+    const res = await fetch("/api/tailor", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (data.needs_paste) {
+        $("paste-box").classList.remove("hidden");
+        $("fetch-error").textContent = data.error + " Paste the job description instead:";
+        $("status").textContent = "";
+      } else {
+        $("status").className = "status error";
+        $("status").textContent = data.error || "Something went wrong.";
+      }
+      return;
+    }
+    render(data);
+    $("status").textContent = `Done in ${((performance.now() - t0) / 1000).toFixed(0)}s. Review and edit below before downloading.`;
+  } catch (e) {
+    $("status").className = "status error";
+    $("status").textContent = "Couldn't reach the local server. Is it running?";
+  } finally {
+    buttons.forEach(b => b.disabled = false);
+  }
+}
+
+function render(d) {
+  const job = d.job || {};
+  company = (job.company || "job").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  $("job-title").textContent = `${job.role || "Role"} · ${job.company || ""}`;
+  $("keywords").innerHTML = [...(job.must_have_skills || []), ...(job.keywords || [])]
+    .map(k => `<span>${esc(k)}</span>`).join("");
+  $("changes").innerHTML = (d.changes || [])
+    .map(c => `<li><strong>${esc(c.what)}</strong> ${esc(c.why)}</li>`).join("");
+  const gaps = d.gaps || [];
+  $("gaps").classList.toggle("hidden", !gaps.length);
+  $("gaps").innerHTML = `<strong>Gaps (not faked):</strong> ${gaps.map(esc).join("; ")}`;
+  const nums = d.new_numbers || [];
+  $("numbers").classList.toggle("hidden", !nums.length);
+  $("numbers").innerHTML = `<strong>Check these:</strong> numbers in the tailored resume that aren't in your base resume: ${nums.map(esc).join(", ")}`;
+  const u = d.usage || {};
+  $("usage").textContent = `Model ${u.model} · ${u.prompt_tokens} in / ${u.completion_tokens} out tokens · $${u.cost_usd ?? "?"}`;
+  $("resume").value = d.tailored_resume;
+  $("cover").value = d.tailored_cover_letter;
+  $("results").classList.remove("hidden");
+}
+
+function download(kind) {
+  const text = $(kind).value;
+  const name = `${kind === "resume" ? "resume" : "cover-letter"}-${company}.md`;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "text/markdown" }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+$("go").onclick = () => { $("paste-box").classList.add("hidden"); run({ url: $("url").value }); };
+$("url").onkeydown = (e) => { if (e.key === "Enter") $("go").click(); };
+$("go-paste").onclick = () => run({ url: $("url").value, job_text: $("job-text").value });
+document.querySelectorAll("[data-dl]").forEach(b => b.onclick = () => download(b.dataset.dl));
+</script>
+</body>
+</html>
