@@ -1,8 +1,8 @@
-# [Project Name]
+# Tailor
 
-> **One-line pitch:** [Who is this for, and what job does it do for them?]
+> **One-line pitch:** For Stern tech MBAs applying to PM roles: paste a job posting URL, get your own resume and cover letter tailored to it in about a minute. Nothing invented.
 
-- **Builder:** [Your Name] (`@github-handle`)
+- **Builder:** Jason (`@github-handle`)
 - **Pod:** [Pod Name / Number]
 - **Product Page & Living PRD:** [Add your GitHub Pages URL]
 - **App:** runs locally through Week 4; add a cloud URL in Build 5.
@@ -41,5 +41,15 @@ Clone **your own repository** and ask your coding agent to document the exact in
 git clone https://github.com/building-with-ai-f26/<your-repo-name>.git
 cd <your-repo-name>
 ```
+
+Run Tailor:
+
+```bash
+cp .env.example .env        # then paste your OPENROUTER_API_KEY into .env
+./app/run.sh                # first run creates app/.venv and installs deps
+# open http://127.0.0.1:8000
+```
+
+Put your real base resume and cover letter in `app/data/base_resume.md` and `app/data/base_cover_letter.md` (placeholders are there now). Each run prints its token usage and cost to the terminal.
 
 If your app needs API keys, use a local environment file such as `.env`. Keep private keys out of source code, browser code, screenshots, and commits. The template ignores `.env`; `.env.example` contains placeholders only.

@@ -3,15 +3,15 @@
 > Give this file to your coding agent and check that it is using these instructions. Keep the stack, commands, and ground rules current.
 
 ## 1. Project Overview
-- **What this repo builds:** [1–2 sentence summary]
+- **What this repo builds:** Tailor — paste a job posting URL, get your existing resume and cover letter tailored to that job. Local web app in `/app`; Product Page in `/docs`.
 - **Primary user & core workflow:** [See the living PRD in `docs/index.html`]
-- **Tech stack:** [e.g., Python 3.12 / FastAPI / Next.js / SQLite / OpenRouter API]
+- **Tech stack:** Python 3 / FastAPI / plain HTML+JS page / httpx + BeautifulSoup for fetching / OpenRouter API (default model `anthropic/claude-sonnet-5.5`)
 
 ## 2. Commands
-- **Install dependencies:** `[e.g., npm install / uv sync]`
-- **Run locally:** `[e.g., npm run dev]`
-- **Run deterministic tests:** `[e.g., pytest / npm test]`
-- **Run model evals:** `[e.g., python tests/eval.py]`
+- **Install dependencies:** handled by `./app/run.sh` on first run (creates `app/.venv`, installs `app/requirements.txt`)
+- **Run locally:** `cp .env.example .env` (add key), then `./app/run.sh` → http://127.0.0.1:8000
+- **Run deterministic tests:** `app/.venv/bin/pytest app/tests`
+- **Run model evals:** not yet (Build 4)
 
 ## 3. Non-Negotiable Engineering Rules
 1. **Plan before coding:** Before touching multiple files, propose a brief plan and wait for approval.
