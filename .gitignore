@@ -28,3 +28,6 @@ build/
 out/
 .DS_Store
 *.log
+
+# Your real resume / cover letter PDFs stay local (repo is public)
+app/data/*.pdf

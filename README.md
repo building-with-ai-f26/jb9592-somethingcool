@@ -50,6 +50,6 @@ cp .env.example .env        # then paste your OPENROUTER_API_KEY into .env
 # open http://127.0.0.1:8000
 ```
 
-Put your real base resume and cover letter in `app/data/base_resume.md` and `app/data/base_cover_letter.md` (placeholders are there now). Each run prints its token usage and cost to the terminal.
+Drop your real resume and cover letter PDFs into `app/data/` with "resume" and "cover" in the filenames (e.g. `resume.pdf`, `cover_letter.pdf`). They're used automatically, take priority over the markdown placeholders, and are gitignored so they stay off GitHub. Each run prints its token usage and cost to the terminal.
 
 If your app needs API keys, use a local environment file such as `.env`. Keep private keys out of source code, browser code, screenshots, and commits. The template ignores `.env`; `.env.example` contains placeholders only.
