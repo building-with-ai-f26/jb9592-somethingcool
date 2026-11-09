@@ -77,7 +77,7 @@ def fetch_job_text(url: str) -> str:
     if not host:
         raise FetchError("That doesn't look like a URL.")
     if any(host == h or host.endswith("." + h) for h in BLOCKED_HOSTS):
-        raise FetchError("Tailor doesn't scrape LinkedIn. Paste the job description below.")
+        raise FetchError("Tailor doesn't scrape LinkedIn.")  # UI adds the "paste instead" prompt
     try:
         resp = httpx.get(url, headers={"User-Agent": USER_AGENT}, follow_redirects=True, timeout=15)
     except httpx.HTTPError as e:
