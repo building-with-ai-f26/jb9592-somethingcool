@@ -170,7 +170,7 @@
       <p class="meta">Updated every week as we test with real users and learn what works.</p>
 
       <h3>1. Target User & The Job to Be Done</h3>
-      <p><strong>Who is this for?</strong> Tech MBA students at NYU Stern applying to PM and tech roles. First users: me (Jason) and [classmate name]. We're both in recruiting season right now and sending out applications every week.</p>
+      <p><strong>Who is this for?</strong> Tech MBA students at NYU Stern applying to PM and tech roles. First users: me (Jason) and Sheshu Chandrasekar. We're both in recruiting season right now and sending out applications every week.</p>
       <p><strong>The painful "Before" workflow:</strong> For every application I read the posting, pick out the keywords, manually rewrite resume bullets to match, then rewrite the cover letter. It takes 45–60 minutes per job, and it's usually 1am when I'm doing it. So half the time I give up and send the generic version, which is exactly what I'm trying not to do.</p>
       <p><strong>The "After" workflow with this product:</strong> Paste the job URL. About 60 seconds later I have a tailored resume and cover letter side by side, plus a short list of what changed and why. I review it, fix anything that sounds off, and download.</p>
 
@@ -190,7 +190,7 @@
       <div class="grid-2">
         <div class="stat-box">
           <div class="stat-label">Cumulative Build Spend</div>
-          <div class="stat-value">$0.07 OpenRouter + [X] agent</div>
+          <div class="stat-value">$0.07 OpenRouter + $20 Claude Pro agent</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Est. Cost Per User Run</div>
@@ -217,9 +217,9 @@
         <ul>
           <li><strong>What shipped:</strong> PRD v1 above, plus a local prototype in <code>/app</code> (<a href="#live-demo">screenshot</a>). Paste a job URL, and it fetches the posting, makes one OpenRouter call, and shows the tailored resume and cover letter side by side (editable), a "what changed and why" list, a "gaps (not faked)" list, and markdown download buttons. If the fetch fails or the URL is LinkedIn, a textarea shows up so you can paste the description instead. Each run logs its token usage and cost to the terminal. 5 deterministic tests cover extraction, the LinkedIn block, and the invented-number check.</li>
           <li><strong>What works (verified Nov 8):</strong> Two full runs on real public postings: Notion "Product Manager, Connections" (Ashby), 19.6s, $0.036; and Figma "Product Manager, AI Growth" (Greenhouse), 17s, $0.033. Fetching also works on a Spotify PM posting on Lever. Both runs kept every number from the base resume (the invented-number check found nothing), and both openly listed gaps like "7+ years of PM experience" and "no AI product experience" instead of faking them. About 20 seconds end to end, well under the 60-second goal.</li>
-          <li><strong>Things learned with AI:</strong> (1) "Fetch the page" isn't one thing. Greenhouse and Lever serve plain HTML, but Ashby pages are rendered by JavaScript (a plain fetch got 37 characters of text). The fix was reading the <code>JobPosting</code> structured data that Ashby embeds for search engines. (2) A prompt rule isn't a guarantee. Even with "never add skills, titles, metrics, or employers," the Figma run added "to track adoption" to my dashboard bullet, which my resume never claimed. Numbers can be checked automatically, but wording like this can't yet. (3) [X: Terminus Episodes 1 and 2 takeaways]</li>
+          <li><strong>Things learned with AI:</strong> (1) "Fetch the page" isn't one thing. Greenhouse and Lever serve plain HTML, but Ashby pages are rendered by JavaScript (a plain fetch got 37 characters of text). The fix was reading the <code>JobPosting</code> structured data that Ashby embeds for search engines. (2) A prompt rule isn't a guarantee. Even with "never add skills, titles, metrics, or employers," the Figma run added "to track adoption" to my dashboard bullet, which my resume never claimed. Numbers can be checked automatically, but wording like this can't yet.</li>
           <li><strong>What broke / changed in PRD:</strong> The first real run failed with an OpenRouter HTTP 402. With no <code>max_tokens</code> set, OpenRouter reserved the model's full 65k-token output against my key's credit limit. Capping it at 3,500 fixed it (runs use about 2.7–2.9k). The LinkedIn fallback message said "paste" twice, also fixed. PRD scope didn't change, but there's one gap against it: "show the changes" is currently a list the model writes about itself, not a real diff, and the "to track adoption" slip shows why that matters. Also, so far it's only been tested on a placeholder resume, not mine.</li>
-          <li><strong>Cost & time this week:</strong> $0.07 OpenRouter (2 successful runs: $0.035842 + $0.033314; the failed 402 run cost nothing) + [X] coding agent · [X] hours</li>
+          <li><strong>Cost & time this week:</strong> $0.07 OpenRouter (2 successful runs: $0.035842 + $0.033314; the failed 402 run cost nothing) + $20 Claude Pro coding agent · 1.5 hours</li>
         </ul>
       </div>
 

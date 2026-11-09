@@ -2,9 +2,9 @@
 
 > **One-line pitch:** For Stern tech MBAs applying to PM roles: paste a job posting URL, get your own resume and cover letter tailored to it in about a minute. Nothing invented.
 
-- **Builder:** Jason (`@github-handle`)
-- **Pod:** [Pod Name / Number]
-- **Product Page & Living PRD:** [Add your GitHub Pages URL]
+- **Builder:** Jason (`@Jason-15)
+- **Pod:** Pod 2
+- **Product Page & Living PRD:** https://building-with-ai-f26.github.io/jb9592-somethingcool/
 - **App:** runs locally through Week 4; add a cloud URL in Build 5.
 
 ## Start here: Build 1
