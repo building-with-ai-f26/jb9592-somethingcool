@@ -13,6 +13,7 @@ import httpx
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "anthropic/claude-sonnet-5.5"
+MAX_TOKENS = 3500  # tailored resume + cover letter + changes fits in ~2-3k tokens
 
 SYSTEM_PROMPT = """You tailor a candidate's EXISTING resume and cover letter to one specific job posting.
 
@@ -62,6 +63,9 @@ def tailor(job_text: str, base_resume: str, base_cover_letter: str) -> dict:
                     {"role": "user", "content": user_msg},
                 ],
                 "response_format": {"type": "json_object"},
+                # Without a cap OpenRouter reserves the model's max output (65k tokens)
+                # against your credit balance and can reject the call with HTTP 402.
+                "max_tokens": MAX_TOKENS,
                 "usage": {"include": True},  # ask OpenRouter to return the $ cost
             },
             timeout=180,
