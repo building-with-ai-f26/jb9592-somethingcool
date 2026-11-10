@@ -5,6 +5,7 @@ number in the tailored resume that wasn't in the base resume, which is a quick
 way to catch an invented metric.
 """
 
+import difflib
 import json
 import os
 import re
@@ -89,6 +90,7 @@ def tailor(job_text: str, base_resume: str, base_cover_letter: str) -> dict:
     result = _parse_json(content)
     result["usage"] = usage_summary
     result["new_numbers"] = new_numbers(base_resume, result.get("tailored_resume", ""))
+    result["resume_diff"] = word_diff(base_resume, result.get("tailored_resume", ""))
     return result
 
 
@@ -104,6 +106,26 @@ def _parse_json(content: str) -> dict:
         if key not in data:
             raise TailorError(f"The model's answer was missing '{key}'. Try again.")
     return data
+
+
+def word_diff(base: str, tailored: str) -> list[list[str]]:
+    """Word-level diff of base vs tailored resume, computed in code (not by the model).
+
+    Returns [op, text] pairs where op is "same", "add", or "del", so the UI can
+    highlight exactly which words Tailor added or removed.
+    """
+    a = re.findall(r"\S+|\s+", base)
+    b = re.findall(r"\S+|\s+", tailored)
+    out = []
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if op == "equal":
+            out.append(["same", "".join(b[j1:j2])])
+            continue
+        if i2 > i1:
+            out.append(["del", "".join(a[i1:i2])])
+        if j2 > j1:
+            out.append(["add", "".join(b[j1:j2])])
+    return out
 
 
 _NUM = re.compile(r"\d[\d,.]*\d|\d")

@@ -5,7 +5,7 @@ import json
 import pytest
 
 from jobfetch import FetchError, extract_text, fetch_job_text
-from tailor import _parse_json, new_numbers
+from tailor import _parse_json, new_numbers, word_diff
 
 
 def test_json_ld_job_posting_is_preferred_for_js_rendered_pages():
@@ -38,3 +38,20 @@ def test_new_numbers_flags_invented_metrics_only():
 def test_parse_json_handles_code_fences():
     raw = '```json\n{"tailored_resume": "r", "tailored_cover_letter": "c", "changes": []}\n```'
     assert _parse_json(raw)["tailored_resume"] == "r"
+
+
+def test_word_diff_catches_added_claim_that_number_check_misses():
+    # Real slip from the Nov 8 Figma run: no number changed, but a claim was added.
+    base = "- Defined success metrics and built a Looker dashboard; beta users paid invoices 18% faster"
+    tailored = "- Defined success metrics and built a Looker dashboard to track adoption; beta users paid invoices 18% faster"
+    assert new_numbers(base, tailored) == []  # the old check sees nothing
+    added = "".join(t for op, t in word_diff(base, tailored) if op == "add")
+    assert "track adoption" in added
+
+
+def test_word_diff_rebuilds_tailored_text_exactly():
+    base = "Worked with 4 engineers.\n\nSkills: SQL, Python"
+    tailored = "Partnered with 4 engineers.\n\nSkills: Python, SQL"
+    diff = word_diff(base, tailored)
+    assert "".join(t for op, t in diff if op != "del") == tailored
+    assert "".join(t for op, t in diff if op != "add") == base

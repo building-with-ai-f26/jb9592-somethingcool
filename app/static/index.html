@@ -30,6 +30,9 @@
     .warn { background:var(--warn-bg); color:var(--warn); border-radius:8px; padding:10px 12px; margin-top:12px; }
     ul { margin:8px 0 0; padding-left:20px; }
     .meta { font-size:12px; color:var(--muted); }
+    .diff { white-space:pre-wrap; font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; margin-top:12px; }
+    .diff .add { background:#dcfce7; color:#166534; }
+    .diff .del { background:#fee2e2; color:#991b1b; text-decoration:line-through; }
   </style>
 </head>
 <body>
@@ -60,6 +63,10 @@
       <div id="numbers" class="warn hidden"></div>
       <p class="meta" id="usage" style="margin-top:12px"></p>
     </div>
+    <details class="card" open>
+      <summary><strong>Every word changed in your resume</strong> <span class="meta">(computed by code, not the AI: green = added, red = removed)</span></summary>
+      <div id="diff" class="diff"></div>
+    </details>
     <div class="grid">
       <div class="card">
         <div class="doc-head"><h2>Tailored resume</h2><button class="secondary" data-dl="resume">Download .md</button></div>
@@ -127,6 +134,8 @@ function render(d) {
   $("numbers").innerHTML = `<strong>Check these:</strong> numbers in the tailored resume that aren't in your base resume: ${nums.map(esc).join(", ")}`;
   const u = d.usage || {};
   $("usage").textContent = `Model ${u.model} · ${u.prompt_tokens} in / ${u.completion_tokens} out tokens · $${u.cost_usd ?? "?"}`;
+  $("diff").innerHTML = (d.resume_diff || [])
+    .map(([op, t]) => op === "same" ? esc(t) : `<span class="${op}">${esc(t)}</span>`).join("");
   $("resume").value = d.tailored_resume;
   $("cover").value = d.tailored_cover_letter;
   $("results").classList.remove("hidden");
