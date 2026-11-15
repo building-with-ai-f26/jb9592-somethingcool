@@ -13,8 +13,9 @@
       posthog.init(POSTHOG_KEY, {
         api_host: "__POSTHOG_HOST__",
         person_profiles: "identified_only",
-        // Session replay: hide what's typed into the resume/cover letter boxes.
-        session_recording: { maskTextSelector: "#resume, #cover, #diff, #job-text" },
+        // Session replay: hide ALL results (resume, cover letter, diff, and the changes/gaps/
+        // keyword lists, which quote the resume) plus the pasted job text. Inputs are masked by default.
+        session_recording: { maskTextSelector: "#results, #job-text" },
       });
     }
     // Safe to call even when PostHog is off. Never send resume or cover letter text.
