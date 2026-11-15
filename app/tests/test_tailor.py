@@ -74,3 +74,14 @@ def test_index_without_posthog_key_leaves_analytics_off(monkeypatch):
     monkeypatch.delenv("POSTHOG_KEY", raising=False)
     html = TestClient(main.app).get("/").text
     assert 'const POSTHOG_KEY = ""' in html  # POSTHOG_ON evaluates to false
+
+
+def test_cut_off_answer_gets_a_clear_error_not_invalid_json():
+    # Real bug, Nov 15: a full-length resume hit the 3,500-token cap, the JSON was
+    # cut off mid-string, and the user saw a misleading "didn't return valid JSON".
+    from tailor import MAX_TOKENS, TailorError, _check_finished
+
+    assert MAX_TOKENS >= 8000
+    with pytest.raises(TailorError, match="cut off"):
+        _check_finished({"finish_reason": "length", "message": {"content": '{"tailored_resume": "# Jas'}})
+    _check_finished({"finish_reason": "stop", "message": {"content": "{}"}})  # no error

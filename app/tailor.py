@@ -14,7 +14,9 @@ import httpx
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_MODEL = "anthropic/claude-sonnet-5.5"
-MAX_TOKENS = 3500  # tailored resume + cover letter + changes fits in ~2-3k tokens
+# A full-length real resume needs >3.5k output tokens (Nov 15: hit the old 3,500 cap).
+# You pay only for tokens used; the cap just has to fit the longest answer.
+MAX_TOKENS = 8000
 
 SYSTEM_PROMPT = """You tailor a candidate's EXISTING resume and cover letter to one specific job posting.
 
@@ -86,12 +88,22 @@ def tailor(job_text: str, base_resume: str, base_cover_letter: str) -> dict:
     }
     print(f"[tailor] run cost: {json.dumps(usage_summary)}", flush=True)
 
-    content = body["choices"][0]["message"]["content"]
-    result = _parse_json(content)
+    choice = body["choices"][0]
+    _check_finished(choice)
+    result = _parse_json(choice["message"]["content"])
     result["usage"] = usage_summary
     result["new_numbers"] = new_numbers(base_resume, result.get("tailored_resume", ""))
     result["resume_diff"] = word_diff(base_resume, result.get("tailored_resume", ""))
     return result
+
+
+def _check_finished(choice: dict) -> None:
+    """A cut-off answer is half a JSON object; say so instead of 'invalid JSON'."""
+    if choice.get("finish_reason") == "length":
+        raise TailorError(
+            f"The answer was cut off at the {MAX_TOKENS}-token limit. "
+            "Your resume may be longer than expected; raise MAX_TOKENS in app/tailor.py."
+        )
 
 
 def _parse_json(content: str) -> dict:
