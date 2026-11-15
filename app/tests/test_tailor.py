@@ -55,3 +55,22 @@ def test_word_diff_rebuilds_tailored_text_exactly():
     diff = word_diff(base, tailored)
     assert "".join(t for op, t in diff if op != "del") == tailored
     assert "".join(t for op, t in diff if op != "add") == base
+
+
+def test_index_injects_posthog_key_from_env(monkeypatch):
+    from fastapi.testclient import TestClient
+    import main
+
+    monkeypatch.setenv("POSTHOG_KEY", "phc_test123")
+    html = TestClient(main.app).get("/").text
+    assert 'const POSTHOG_KEY = "phc_test123"' in html
+    assert "__POSTHOG_HOST__" not in html
+
+
+def test_index_without_posthog_key_leaves_analytics_off(monkeypatch):
+    from fastapi.testclient import TestClient
+    import main
+
+    monkeypatch.delenv("POSTHOG_KEY", raising=False)
+    html = TestClient(main.app).get("/").text
+    assert 'const POSTHOG_KEY = ""' in html  # POSTHOG_ON evaluates to false

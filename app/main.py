@@ -1,10 +1,11 @@
 """Tailor: local web app. Run with ./app/run.sh, then open http://127.0.0.1:8000"""
 
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from pypdf import PdfReader
 
@@ -43,7 +44,11 @@ def load_base(kind: str) -> str:
 
 @app.get("/")
 def index():
-    return FileResponse(APP_DIR / "static" / "index.html")
+    # Fill in PostHog settings from .env. With no key set, the page skips analytics.
+    html = (APP_DIR / "static" / "index.html").read_text()
+    html = html.replace("__POSTHOG_KEY__", os.environ.get("POSTHOG_KEY", ""))
+    html = html.replace("__POSTHOG_HOST__", os.environ.get("POSTHOG_HOST", "https://us.i.posthog.com"))
+    return HTMLResponse(html)
 
 
 @app.post("/api/tailor")
