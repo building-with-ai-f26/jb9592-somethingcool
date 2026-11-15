@@ -192,17 +192,17 @@
       <p><strong>Riskiest Assumption:</strong> That Tailor can rewrite my resume <em>without inventing anything</em>. If it slips in claims I never made, I have to re-read every line against my original, and the 45 minutes I was trying to save comes right back. Worse, I might send something untrue to a recruiter.</p>
       <p><strong>How this build tests it:</strong> Three layers, and only one of them trusts the AI. (1) The prompt forbids adding skills, titles, metrics, or employers. (2) Code checks for any number in the tailored resume that isn't in my original. (3) Code compares my original and tailored resume word by word and highlights every added word. The evidence so far: in 2 real runs the number check found nothing invented, but the Figma run added "to track adoption", a claim the prompt rule and the number check both missed. The word comparison now catches it, and a test reproduces it. Still unknown: how often this happens across many postings. That's the Build 4 eval.</p>
       <p><strong>Simple Architecture:</strong> Job URL (or pasted description) → local FastAPI server → fetch the posting and pull out its text (job data embedded in the page first, then visible text; LinkedIn is skipped) + my resume and cover letter PDFs → <strong>one</strong> OpenRouter call to Claude Sonnet 5.5 that returns the tailored resume, cover letter, a "what changed" list, and gaps as JSON → code checks (new numbers, word-by-word comparison) → side-by-side page where I edit and download markdown. PostHog records pageviews, clicks, and the core steps (<code>tailor_started</code>, <code>tailor_succeeded</code>, <code>tailor_failed</code>, <code>document_downloaded</code>), never my resume text.</p>
-      <p><strong>Cost per run:</strong> about $0.035, measured on 2 real runs ($0.0358 and $0.0333): about 3.3k tokens in and 2.8k out at $2 / $10 per million tokens. At 20 applications a month, that's about $0.70 a month. The word comparison and checks run in code and cost nothing.</p>
+      <p><strong>Cost per run:</strong> about $0.05 with my real resume ($0.052 on Nov 15: 5.6k tokens in, 4.1k out at $2 / $10 per million tokens). The short placeholder resume cost about $0.035. At 20 applications a month, that's about $1 a month. The word comparison and checks run in code and cost nothing.</p>
 
       <h3>4. Unit Economics & Analytics Snapshot (Updated Weekly)</h3>
       <div class="grid-2">
         <div class="stat-box">
           <div class="stat-label">Cumulative Build Spend</div>
-          <div class="stat-value">$0.07 OpenRouter + $20 Claude Pro agent</div>
+          <div class="stat-value">$0.17 OpenRouter + $20 Claude Pro agent</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Est. Cost Per User Run</div>
-          <div class="stat-value">~$0.035 (2 real runs)</div>
+          <div class="stat-value">~$0.05 (real resume)</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">User Evidence (Analytics from Build 2)</div>
@@ -237,8 +237,8 @@
         <ul>
           <li><strong>What shipped:</strong> (1) <strong>Word-by-word comparison</strong> (Nov 10): Tailor highlights every word it added to or removed from my resume, computed in code, so I don't have to trust the AI's own list of changes. (2) <strong>PostHog on this page and the local app</strong> (Nov 15): pageviews, automatic click tracking, and the core workflow steps <code>tailor_started</code> → <code>tailor_succeeded</code> (time, tokens, cost) / <code>tailor_failed</code> (including when the paste box appears) → <code>document_downloaded</code>. My resume text is never sent, and replay masks the resume panels. The app reads the PostHog key from <code>.env</code>. (3) <strong>PRD v2</strong> above: riskiest assumption, how this build tests it, architecture, cost per run. (4) <strong>AGENTS.md</strong>: project structure and full setup. Also since Build 1: Tailor reads my real resume and cover letter from PDFs, which are kept off GitHub. 9 deterministic tests pass.</li>
           <li><strong>Lessons:</strong> My first PostHog check said no events were being sent. PostHog's debug log showed why: it drops traffic from automated test browsers as bots. Once that was allowed for the test only, both pages sent events and PostHog accepted them. Real visitors were never affected. Also, PostHog has two kinds of keys: the <code>phc_</code> project key is meant to be public (it can only send events), unlike my OpenRouter key, which stays secret in <code>.env</code>.</li>
-          <li><strong>What broke / changed in PRD:</strong> Session replay was switched off by default in my PostHog project, a setting on PostHog's side rather than in the code. [X: confirm replay turned on and a recording shows up]. The PRD now names the biggest risk: Tailor inventing claims. This build tests it in code, after the "to track adoption" slip showed a prompt rule alone isn't enough. Not yet tested by an outside user.</li>
-          <li><strong>Cost & time this week:</strong> $0.00 OpenRouter (no new AI runs; the new features were checked with a saved run, so no API calls) + [X] coding agent · [X] hours</li>
+          <li><strong>What broke / changed in PRD:</strong> Session replay was switched off by default in my PostHog project, a setting on PostHog's side rather than in the code. [X: confirm replay turned on and a recording shows up]. The PRD now names the biggest risk: Tailor inventing claims. This build tests it in code, after the "to track adoption" slip showed a prompt rule alone isn't enough. Not yet tested by an outside user. <strong>Bug found on my real resume:</strong> Tailor failed with "didn't return valid JSON". The real cause was the 3,500-token output cap I set in Build 1: my full resume needs about 4,100 tokens, so the answer was cut off mid-JSON. I raised the cap to 8,000 (you only pay for tokens used), and a cut-off answer now says so instead of claiming bad JSON. A test reproduces it, and the same posting now works.</li>
+          <li><strong>Cost & time this week:</strong> $0.10 OpenRouter (2 runs on my real resume while fixing the bug below: $0.046 cut off + $0.052 fixed; the other new features were checked with a saved run, no API calls) + [X] coding agent · [X] hours</li>
         </ul>
       </div>
 
