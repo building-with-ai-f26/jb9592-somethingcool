@@ -235,9 +235,10 @@
       <div class="log-entry">
         <h3>Build 2 · Smallest Local Version & PostHog (Due Nov 16)</h3>
         <ul>
-          <li><strong>What shipped:</strong> [Local working slice, PostHog verified on this page and the local app, PRD v2, and local setup in AGENTS.md]</li>
-          <li><strong>What broke / changed in PRD:</strong> [Fill in]</li>
-          <li><strong>Cost & time this week:</strong> $[0.00] · [0] hours</li>
+          <li><strong>What shipped:</strong> (1) <strong>Word-by-word comparison</strong> (Nov 10): Tailor highlights every word it added to or removed from my resume, computed in code, so I don't have to trust the AI's own list of changes. (2) <strong>PostHog on this page and the local app</strong> (Nov 15): pageviews, automatic click tracking, and the core workflow steps <code>tailor_started</code> → <code>tailor_succeeded</code> (time, tokens, cost) / <code>tailor_failed</code> (including when the paste box appears) → <code>document_downloaded</code>. My resume text is never sent, and replay masks the resume panels. The app reads the PostHog key from <code>.env</code>. (3) <strong>PRD v2</strong> above: riskiest assumption, how this build tests it, architecture, cost per run. (4) <strong>AGENTS.md</strong>: project structure and full setup. Also since Build 1: Tailor reads my real resume and cover letter from PDFs, which are kept off GitHub. 9 deterministic tests pass.</li>
+          <li><strong>Lessons:</strong> My first PostHog check said no events were being sent. PostHog's debug log showed why: it drops traffic from automated test browsers as bots. Once that was allowed for the test only, both pages sent events and PostHog accepted them. Real visitors were never affected. Also, PostHog has two kinds of keys: the <code>phc_</code> project key is meant to be public (it can only send events), unlike my OpenRouter key, which stays secret in <code>.env</code>.</li>
+          <li><strong>What broke / changed in PRD:</strong> Session replay was switched off by default in my PostHog project, a setting on PostHog's side rather than in the code. [X: confirm replay turned on and a recording shows up]. The PRD now names the biggest risk: Tailor inventing claims. This build tests it in code, after the "to track adoption" slip showed a prompt rule alone isn't enough. Not yet tested by an outside user.</li>
+          <li><strong>Cost & time this week:</strong> $0.00 OpenRouter (no new AI runs; the new features were checked with a saved run, so no API calls) + [X] coding agent · [X] hours</li>
         </ul>
       </div>
 
