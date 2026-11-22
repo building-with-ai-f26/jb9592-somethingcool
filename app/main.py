@@ -4,12 +4,13 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from pypdf import PdfReader
 
 from jobfetch import FetchError, fetch_job_text
+from ratelimit import RateLimiter
 from tailor import TailorError, tailor
 
 APP_DIR = Path(__file__).parent
@@ -17,6 +18,25 @@ DATA_DIR = APP_DIR / "data"
 load_dotenv(APP_DIR.parent / ".env")  # .env lives at the repo root
 
 app = FastAPI(title="Tailor")
+
+# The AI route costs money per call: limit each visitor, and cap the whole site per day.
+limiter = RateLimiter(
+    per_visitor=int(os.environ.get("RATE_LIMIT_PER_HOUR", "5")),
+    window_s=3600,
+    global_per_day=int(os.environ.get("DAILY_RUN_CAP", "100")),
+)
+
+
+def client_ip(request: Request) -> str:
+    # Behind Render's proxy the visitor's IP is the first X-Forwarded-For entry.
+    # A visitor can fake this header; the site-wide daily cap still bounds the spend.
+    fwd = request.headers.get("x-forwarded-for", "")
+    return fwd.split(",")[0].strip() or (request.client.host if request.client else "unknown")
+
+
+def too_many(ip: str, message: str) -> JSONResponse:
+    return JSONResponse({"error": message, "rate_limited": True}, status_code=429,
+                        headers={"Retry-After": str(limiter.retry_after(ip))})
 
 
 class TailorRequest(BaseModel):
@@ -52,8 +72,11 @@ def index():
 
 
 @app.post("/api/tailor")
-def tailor_endpoint(req: TailorRequest):
-    job_text = req.job_text.strip()
+def tailor_endpoint(req: TailorRequest, request: Request):
+    ip = client_ip(request)
+    if not limiter.allow_visitor(ip):
+        return too_many(ip, f"You've hit Tailor's limit of {limiter.per_visitor} runs per hour. Try again later.")
+    job_text = req.job_text.strip()[:20000]  # pasted text gets the same cap as fetched pages
     if not job_text:
         try:
             job_text = fetch_job_text(req.url.strip())
@@ -66,6 +89,8 @@ def tailor_endpoint(req: TailorRequest):
         base_cover = load_base("cover")
     except FileNotFoundError as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+    if not limiter.allow_ai_run():
+        return too_many(ip, "Tailor has reached its daily limit. Please try again tomorrow.")
     try:
         result = tailor(job_text, base_resume, base_cover)
     except TailorError as e:

@@ -119,3 +119,28 @@ def test_upstream_error_details_are_not_shown_to_visitors():
 
     msg = _public_error(402, '{"error":{"message":"visit https://openrouter.ai/workspaces/default/keys/3a61217cc651"}}')
     assert "openrouter.ai/workspaces" not in msg and "3a61217cc651" not in msg
+
+
+# ---------------------------------------------------------------- Build 3 security: rate limits
+def test_thirty_calls_in_a_row_get_rate_limited(monkeypatch):
+    # The assignment's test: call the AI route 30 times; the limit must kick in with 429.
+    from fastapi.testclient import TestClient
+    import main
+    from ratelimit import RateLimiter
+
+    monkeypatch.setattr(main, "limiter", RateLimiter(per_visitor=5, window_s=3600, global_per_day=100))
+    client = TestClient(main.app)
+    codes = [client.post("/api/tailor", json={"url": ""}).status_code for _ in range(30)]
+    assert 429 not in codes[:5]
+    assert codes[5:] == [429] * 25
+    r = client.post("/api/tailor", json={"url": ""})
+    assert r.json()["rate_limited"] is True and int(r.headers["retry-after"]) > 0
+
+
+def test_visitors_are_limited_separately_and_global_cap_holds():
+    from ratelimit import RateLimiter
+
+    rl = RateLimiter(per_visitor=2, window_s=3600, global_per_day=3)
+    assert rl.allow_visitor("a") and rl.allow_visitor("a") and not rl.allow_visitor("a")
+    assert rl.allow_visitor("b")  # b is unaffected by a
+    assert rl.allow_ai_run() and rl.allow_ai_run() and rl.allow_ai_run() and not rl.allow_ai_run()
