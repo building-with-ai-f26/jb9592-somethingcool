@@ -163,8 +163,9 @@
     <section id="live-demo">
       <h2>Product Showcase (Prototype / Live App / 2-Min Video)</h2>
       <p>
-        <strong>Current Status:</strong> Build 1: rough local prototype (FastAPI + one HTML page, runs with <code>./app/run.sh</code>)<br />
-        <strong>Demo:</strong> Screenshot below from a real run against Figma's "Product Manager, AI Growth" posting on Greenhouse (Nov 8). The resume shown is a placeholder, not mine yet.
+        <strong>Current Status:</strong> Build 3: <strong>live at <a href="https://jb9592-somethingcool.onrender.com">jb9592-somethingcool.onrender.com</a></strong>. Works on a phone. It's on Render's free tier, so the first visit after it's been idle takes about 30–60 seconds to wake up.<br />
+        <strong>Try it:</strong> tap <em>Use the sample</em> (or upload your own resume PDF), paste a Greenhouse, Lever or Ashby job link, then tap <em>Tailor it</em>.<br />
+        <strong>Demo:</strong> Screenshot below is from Build 1 (Nov 8, Figma "Product Manager, AI Growth" posting, placeholder resume). The live version adds a step 1 above it, where you bring your own resume.
       </p>
       <img src="assets/tailor-prototype.png" alt="Tailor prototype: job URL input, extracted keywords, what-changed list, gaps warning, and tailored resume and cover letter side by side" style="width:100%;border:1px solid var(--border);border-radius:8px;" />
       <p class="meta">Real run: 17 seconds, 3,277 input / 2,676 output tokens, $0.033 on anthropic/claude-sonnet-5.5 via OpenRouter.</p>
@@ -173,16 +174,16 @@
     <!-- LIVING PRD (Updated every week!) -->
     <section id="prd">
       <h2>Living PRD (Product Requirements Document)</h2>
-      <p class="meta">PRD v2 · updated Nov 15. Updated every week as we test with real users and learn what works.</p>
+      <p class="meta">PRD v3 · updated Nov 22. Updated every week as we test with real users and learn what works.</p>
 
       <h3>1. Target User & The Job to Be Done</h3>
       <p><strong>Who is this for?</strong> Tech MBA students at NYU Stern applying to PM and tech roles. First users: me (Jason) and Sheshu Chandrasekar. We're both in recruiting season right now and sending out applications every week.</p>
       <p><strong>The painful "Before" workflow:</strong> For every application I read the posting, pick out the keywords, manually rewrite resume bullets to match, then rewrite the cover letter. It takes 45–60 minutes per job, and it's usually 1am when I'm doing it. So half the time I give up and send the generic version, which is exactly what I'm trying not to do.</p>
-      <p><strong>The "After" workflow with this product:</strong> Paste the job URL. About 60 seconds later I have a tailored resume and cover letter side by side, plus a short list of what changed and why. I review it, fix anything that sounds off, and download.</p>
+      <p><strong>The "After" workflow with this product:</strong> Open Tailor on my laptop or phone, upload my resume PDF (once per session), and paste the job URL. About 20 seconds later I have a tailored resume and cover letter side by side, plus a short list of what changed and why. I review it, fix anything that sounds off, and download.</p>
 
       <h3>2. Scope & Explicit Non-Goals</h3>
       <ul>
-        <li><strong>In Scope (Core Workflow):</strong> Job URL in → fetch the posting and pull out the role, company, must-have skills, and keywords → rewrite my base resume and base cover letter to match → show what changed → download.</li>
+        <li><strong>In Scope (Core Workflow):</strong> Resume in (PDF upload, paste, or the sample) + job URL in → fetch the posting and pull out the role, company, must-have skills, and keywords → rewrite that resume and cover letter to match → show what changed → download.</li>
         <li><strong>Out of Scope #1:</strong> No auto-applying. Tailor hands me documents; I decide where they go.</li>
         <li><strong>Out of Scope #2:</strong> No LinkedIn account connection or LinkedIn scraping. If a posting page is blocked, I paste the description in.</li>
         <li><strong>Out of Scope #3:</strong> No inventing experience. Tailor only reframes and reorders what's already in my resume. No new skills, titles, metrics, or employers.</li>
@@ -191,22 +192,28 @@
       <h3>3. How It Works Under the Hood & Riskiest Assumption (Week 2+)</h3>
       <p><strong>Riskiest Assumption:</strong> That Tailor can rewrite my resume <em>without inventing anything</em>. If it slips in claims I never made, I have to re-read every line against my original, and the 45 minutes I was trying to save comes right back. Worse, I might send something untrue to a recruiter.</p>
       <p><strong>How this build tests it:</strong> Three layers, and only one of them trusts the AI. (1) The prompt forbids adding skills, titles, metrics, or employers. (2) Code checks for any number in the tailored resume that isn't in my original. (3) Code compares my original and tailored resume word by word and highlights every added word. The evidence so far: in 2 real runs the number check found nothing invented, but the Figma run added "to track adoption", a claim the prompt rule and the number check both missed. The word comparison now catches it, and a test reproduces it. Still unknown: how often this happens across many postings. That's the Build 4 eval.</p>
-      <p><strong>Simple Architecture:</strong> Job URL (or pasted description) → local FastAPI server → fetch the posting and pull out its text (job data embedded in the page first, then visible text; LinkedIn is skipped) + my resume and cover letter PDFs → <strong>one</strong> OpenRouter call to Claude Sonnet 5.5 that returns the tailored resume, cover letter, a "what changed" list, and gaps as JSON → code checks (new numbers, word-by-word comparison) → side-by-side page where I edit and download markdown. PostHog records pageviews, clicks, and the core steps (<code>tailor_started</code>, <code>tailor_succeeded</code>, <code>tailor_failed</code>, <code>document_downloaded</code>), never my resume text.</p>
-      <p><strong>Cost per run:</strong> about $0.05 with my real resume ($0.052 on Nov 15: 5.6k tokens in, 4.1k out at $2 / $10 per million tokens). The short placeholder resume cost about $0.035. At 20 applications a month, that's about $1 a month. The word comparison and checks run in code and cost nothing.</p>
+      <p><strong>Simple Architecture:</strong> Browser (phone or laptop) with the visitor's resume (uploaded PDF converted to text in memory, pasted, or the sample) + a job URL (or pasted description) → Tailor's FastAPI server on Render → fetch the posting and pull out its text (job data embedded in the page first, then visible text; LinkedIn is skipped; private and internal addresses are refused) → <strong>one</strong> OpenRouter call to Claude Sonnet 5.5 that returns the tailored resume, cover letter, a "what changed" list, and gaps as JSON → code checks (new numbers, word-by-word comparison) → side-by-side page where I edit and download markdown. PostHog records pageviews, clicks, and the core steps (<code>tailor_started</code>, <code>tailor_succeeded</code>, <code>tailor_failed</code>, <code>document_downloaded</code>), never my resume text.</p>
+      <p><strong>Cost per run:</strong> about $0.03–0.05. On the live site with the sample resume: $0.033 (Nov 22, 3.2k tokens in, 2.7k out at $2 / $10 per million tokens). With my full real resume: $0.052 (Nov 15). At 20 applications a month, that's about $1 a month. The word comparison and checks run in code and cost nothing. Hosting is $0 (Render free tier).</p>
+      <p><strong>Hosting, database & security (PRD v3):</strong></p>
+      <ul>
+        <li><strong>Hosting:</strong> Render free web service, configured in <code>render.yaml</code>. It redeploys automatically when I push to <code>main</code>. Trade-off: it sleeps when idle, so the first visit is slow.</li>
+        <li><strong>Database: none, on purpose.</strong> There's nothing worth storing. The resume stays in the visitor's browser and passes through the server to the model; uploaded PDFs are read in memory and thrown away. No sign-in, no accounts, no stored personal data to leak.</li>
+        <li><strong>Security:</strong> the OpenRouter key lives only in Render's environment settings. The AI route is limited to 5 runs per visitor per hour and 100 per day site-wide, and there are size limits on every input. The job-URL box can't be used to reach internal addresses. A dependency audit found 121 known vulnerabilities, all fixed by upgrading. One known open issue: the per-visitor limit can be dodged with a fake header, but the daily cap still bounds the cost. Full audit in <a href="https://github.com/building-with-ai-f26/jb9592-somethingcool/blob/main/SECURITY.md">SECURITY.md</a>.</li>
+      </ul>
 
       <h3>4. Unit Economics & Analytics Snapshot (Updated Weekly)</h3>
       <div class="grid-2">
         <div class="stat-box">
           <div class="stat-label">Cumulative Build Spend</div>
-          <div class="stat-value">$0.17 OpenRouter + $20 Claude Pro agent</div>
+          <div class="stat-value">$0.29 OpenRouter + $20 Claude Pro agent · $0 hosting</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Est. Cost Per User Run</div>
-          <div class="stat-value">~$0.05 (real resume)</div>
+          <div class="stat-value">~$0.03–0.05 per run</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">User Evidence (Analytics from Build 2)</div>
-          <div class="stat-value">PostHog live Nov 15 · no outside users yet</div>
+          <div class="stat-value">Live site + PostHog since Nov 22 · no outside users yet</div>
         </div>
         <div class="stat-box">
           <div class="stat-label">Sponsor Call (Week 6)</div>
@@ -245,9 +252,11 @@
       <div class="log-entry">
         <h3>Build 3 · Build.exe: The Core Workflow (Due Nov 23)</h3>
         <ul>
-          <li><strong>What shipped:</strong> [End-to-end workflow working with real inputs + PostHog funnel events]</li>
-          <li><strong>What broke / changed in PRD:</strong> [Fill in]</li>
-          <li><strong>Cost & time this week:</strong> $[0.00] · [0] hours</li>
+          <li><strong>What shipped:</strong> (1) <strong>Tailor is live</strong> at <a href="https://jb9592-somethingcool.onrender.com">jb9592-somethingcool.onrender.com</a> (Render, Beginner lane), with PostHog and session replay working there. (2) <strong>Bring your own resume:</strong> upload a PDF, paste text, or use the sample. Nothing is stored. (3) <strong>Security hardening before going public:</strong> per-visitor and site-wide rate limits (429), the job-URL box can no longer reach internal addresses, size limits on every input, a 4 MB cap on requests, error messages that no longer expose account details, and all dependencies upgraded. (4) <strong><a href="https://github.com/building-with-ai-f26/jb9592-somethingcool/blob/main/SECURITY.md">SECURITY.md</a></strong> plus <code>scripts/security_check.sh</code>, which reruns the key search and the 30-call test against any URL. (5) <strong>AGENTS.md:</strong> Shipping steps with rollback, an Ask-me-first list, and three rules from real agent mistakes. 25 deterministic tests pass.</li>
+          <li><strong>What works (verified on the live site, Nov 22):</strong> a full run on a phone-sized screen. I used the sample resume with Figma's "Product Manager, AI Growth" posting: done in 19 seconds for $0.033, the download worked, and PostHog accepted the events. Security test: 26 of 30 back-to-back calls returned 429. No secret keys in the repo, its git history, or the live page.</li>
+          <li><strong>Lessons:</strong> (1) Going public changes what counts as a bug. The job-URL box was harmless on my laptop, but on a server it would have let anyone make Tailor fetch internal addresses. (2) The package versions I pinned in Build 1 had 121 known vulnerabilities. <code>pip-audit</code> found them in seconds. The one that mattered most was the PDF library, which now reads files uploaded by strangers. (3) Limiting by IP address is weaker than it looks: I could fake a different address on every request and skip the per-visitor limit. The real money backstops are the site-wide daily cap and the spending limit on my OpenRouter key.</li>
+          <li><strong>What broke / changed in PRD:</strong> Deploying forced a product change. Tailor used to read my resume PDFs from my laptop, which a public site can't do (and shouldn't: it would show my resume to anyone). Visitors now bring their own, and the PRD workflow above changed to match. One of my new tests accidentally made a real paid AI call (about $0.05), because the app loads the key from <code>.env</code>; tests now can't see the key. FastAPI turned my "request too large" signal into a confusing 400, so I made it return a clear 413. The fake-address rate-limit bypass is documented as an open issue in SECURITY.md. Not yet tested by a classmate on their phone.</li>
+          <li><strong>Cost & time this week:</strong> about $0.12 OpenRouter (live-site run $0.033, local end-to-end run $0.035, and about $0.05 from the test that accidentally called the API) + Claude Code coding agent + $0 hosting · 1.5 hours</li>
         </ul>
       </div>
 

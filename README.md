@@ -5,7 +5,7 @@
 - **Builder:** Jason (`@Jason-15`)
 - **Pod:** Pod 2
 - **Product Page & Living PRD:** https://building-with-ai-f26.github.io/jb9592-somethingcool/
-- **App:** runs locally through Week 4; add a cloud URL in Build 5.
+- **Live app:** https://jb9592-somethingcool.onrender.com (Render free tier; first visit after idle takes ~30–60 s). Security audit: [SECURITY.md](./SECURITY.md).
 
 ## Start here: Build 1
 
