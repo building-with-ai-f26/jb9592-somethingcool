@@ -144,3 +144,45 @@ def test_visitors_are_limited_separately_and_global_cap_holds():
     assert rl.allow_visitor("a") and rl.allow_visitor("a") and not rl.allow_visitor("a")
     assert rl.allow_visitor("b")  # b is unaffected by a
     assert rl.allow_ai_run() and rl.allow_ai_run() and rl.allow_ai_run() and not rl.allow_ai_run()
+
+
+# ---------------------------------------------------------------- Build 3: visitor brings their own resume
+def _client(monkeypatch):
+    from fastapi.testclient import TestClient
+    import main
+    from ratelimit import RateLimiter
+
+    monkeypatch.setattr(main, "limiter", RateLimiter(per_visitor=100, window_s=3600, global_per_day=100))
+    return TestClient(main.app), main
+
+
+def test_tailor_requires_a_resume(monkeypatch):
+    client, _ = _client(monkeypatch)
+    r = client.post("/api/tailor", json={"job_text": "PM role " * 100, "resume_text": "  "})
+    assert r.status_code == 400 and "resume" in r.json()["error"].lower()
+
+
+def test_oversized_resume_is_rejected_before_any_ai_call(monkeypatch):
+    client, main = _client(monkeypatch)
+    monkeypatch.setattr(main, "tailor", lambda *a: pytest.fail("AI must not be called"))
+    r = client.post("/api/tailor", json={"job_text": "PM role " * 100, "resume_text": "x" * 15001})
+    assert r.status_code == 413
+
+
+def test_defaults_on_a_server_without_pdfs_is_the_clean_sample(monkeypatch, tmp_path):
+    client, main = _client(monkeypatch)
+    (tmp_path / "base_resume.md").write_text("<!-- PLACEHOLDER: replace -->\n# Alex Placeholder\n")
+    (tmp_path / "base_cover_letter.md").write_text("<!-- PLACEHOLDER -->\nDear team,\n")
+    monkeypatch.setattr(main, "DATA_DIR", tmp_path)
+    d = client.get("/api/defaults").json()
+    assert d["source"] == "sample" and d["resume"].startswith("# Alex Placeholder") and "PLACEHOLDER" not in d["cover"]
+
+
+def test_pdf_text_rejects_non_pdfs_and_huge_files(monkeypatch):
+    import base64
+
+    client, _ = _client(monkeypatch)
+    r = client.post("/api/pdf-text", json={"data_b64": base64.b64encode(b"hello, not a pdf").decode()})
+    assert r.status_code == 400
+    r = client.post("/api/pdf-text", json={"data_b64": base64.b64encode(b"%PDF" + b"0" * 2_100_000).decode()})
+    assert r.status_code == 413

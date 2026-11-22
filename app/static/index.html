@@ -41,6 +41,10 @@
     .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
     @media (max-width:800px) { .grid { grid-template-columns:1fr; } .row { flex-direction:column; } }
     .grid textarea { min-height:560px; }
+    .inputs { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:10px; }
+    @media (max-width:800px) { .inputs { grid-template-columns:1fr; } }
+    .inputs input[type=file] { display:block; margin:6px 0; font-size:13px; max-width:100%; }
+    .lbl { font-weight:600; font-size:14px; }
     .doc-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
     h2 { font-size:17px; margin:0; }
     .tags span { display:inline-block; background:#eff6ff; color:#1e40af; font-size:12px; padding:2px 8px; border-radius:999px; margin:2px 4px 2px 0; }
@@ -58,6 +62,24 @@
   <p class="sub">Paste a job posting URL. Get your own resume and cover letter tailored to it. Nothing invented.</p>
 
   <div class="card">
+    <div class="doc-head"><h2>1. Your resume &amp; cover letter</h2><button class="secondary" id="use-sample">Use the sample</button></div>
+    <div class="inputs">
+      <div>
+        <label class="lbl" for="base-resume">Resume <span class="meta">(required)</span></label>
+        <input type="file" id="resume-pdf" accept="application/pdf" aria-label="Upload resume PDF" />
+        <textarea id="base-resume" rows="8" placeholder="Upload a PDF above, or paste your resume here"></textarea>
+      </div>
+      <div>
+        <label class="lbl" for="base-cover">Cover letter <span class="meta">(optional)</span></label>
+        <input type="file" id="cover-pdf" accept="application/pdf" aria-label="Upload cover letter PDF" />
+        <textarea id="base-cover" rows="8" placeholder="Upload a PDF above, or paste your cover letter here"></textarea>
+      </div>
+    </div>
+    <p class="meta" style="margin:8px 0 0">Your resume is sent to the AI model to tailor it. Tailor doesn't save it anywhere.</p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-bottom:10px">2. The job</h2>
     <div class="row">
       <input id="url" type="url" placeholder="https://jobs.ashbyhq.com/... or Greenhouse / Lever link" />
       <button id="go">Tailor it</button>
@@ -104,6 +126,14 @@ let company = "job";
 function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
 
 async function run(payload) {
+  payload.resume_text = $("base-resume").value;
+  payload.cover_text = $("base-cover").value;
+  if (!payload.resume_text.trim()) {
+    $("status").className = "status error";
+    $("status").textContent = "Add your resume first (step 1): upload a PDF, paste it, or use the sample.";
+    $("base-resume").focus();
+    return;
+  }
   const buttons = [$("go"), $("go-paste")];
   buttons.forEach(b => b.disabled = true);
   $("status").className = "status";
@@ -141,7 +171,7 @@ async function run(payload) {
   } catch (e) {
     track("tailor_failed", { source, job_host: host, status: "network" });
     $("status").className = "status error";
-    $("status").textContent = "Couldn't reach the local server. Is it running?";
+    $("status").textContent = "Couldn't reach Tailor's server. Check your connection and try again.";
   } finally {
     buttons.forEach(b => b.disabled = false);
   }
@@ -180,6 +210,46 @@ function download(kind) {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+// Step 1: resume + cover letter from a PDF upload, pasting, or the sample.
+function pdfToText(fileInput, target, kind) {
+  fileInput.onchange = async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    target.value = ""; target.placeholder = "Reading PDF…";
+    try {
+      const b64 = await new Promise((ok, fail) => {
+        const r = new FileReader();
+        r.onload = () => ok(String(r.result).split(",")[1]); // strip "data:application/pdf;base64,"
+        r.onerror = fail;
+        r.readAsDataURL(file);
+      });
+      const res = await fetch("/api/pdf-text", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data_b64: b64 }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't read that PDF.");
+      target.value = data.text;
+      track("resume_added", { kind, method: "pdf" });
+    } catch (e) {
+      target.placeholder = `${e.message} You can paste the text here instead.`;
+      fileInput.value = "";
+    }
+  };
+}
+pdfToText($("resume-pdf"), $("base-resume"), "resume");
+pdfToText($("cover-pdf"), $("base-cover"), "cover");
+
+let defaults = null;
+fetch("/api/defaults").then(r => r.ok ? r.json() : null).then(d => {
+  defaults = d;
+  if (!d) $("use-sample").classList.add("hidden");
+  else if (d.source === "saved") $("use-sample").textContent = "Use my saved resume";
+}).catch(() => {});
+$("use-sample").onclick = () => {
+  if (!defaults) return;
+  $("base-resume").value = defaults.resume;
+  $("base-cover").value = defaults.cover;
+  track("resume_added", { kind: "both", method: defaults.source });
+};
 
 $("go").onclick = () => { $("paste-box").classList.add("hidden"); run({ url: $("url").value }); };
 $("url").onkeydown = (e) => { if (e.key === "Enter") $("go").click(); };
