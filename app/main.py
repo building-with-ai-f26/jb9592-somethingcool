@@ -23,6 +23,56 @@ load_dotenv(APP_DIR.parent / ".env")  # .env lives at the repo root
 
 app = FastAPI(title="Tailor")
 
+MAX_BODY_BYTES = 4_000_000  # biggest legit request: a 2 MB PDF as base64 (~2.7 MB)
+
+
+class BodySizeLimit:
+    """Refuse request bodies over MAX_BODY_BYTES while they stream in, so a huge upload
+    can't exhaust the free server's memory. Works with or without a Content-Length header."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        declared = dict(scope.get("headers", [])).get(b"content-length")
+        if declared and declared.isdigit() and int(declared) > MAX_BODY_BYTES:
+            return await JSONResponse({"error": "Request too large."}, status_code=413)(scope, receive, send)
+        seen, exceeded, replied = 0, False, False
+        too_large = JSONResponse({"error": "Request too large."}, status_code=413)
+
+        class TooLarge(Exception):
+            pass
+
+        async def counting_receive():
+            nonlocal seen, exceeded
+            message = await receive()
+            if message["type"] == "http.request":
+                seen += len(message.get("body", b""))
+                if seen > MAX_BODY_BYTES:
+                    exceeded = True
+                    raise TooLarge  # stops reading; FastAPI may turn this into a 400
+            return message
+
+        async def guarded_send(message):
+            nonlocal replied
+            if exceeded:  # swap whatever the app answers for a clear 413
+                if not replied and message["type"] == "http.response.start":
+                    replied = True
+                    await too_large(scope, receive, send)
+                return
+            await send(message)
+
+        try:
+            await self.app(scope, counting_receive, guarded_send)
+        except TooLarge:
+            if not replied:
+                await too_large(scope, receive, send)
+
+
+app.add_middleware(BodySizeLimit)
+
 # The AI route costs money per call: limit each visitor, and cap the whole site per day.
 limiter = RateLimiter(
     per_visitor=int(os.environ.get("RATE_LIMIT_PER_HOUR", "5")),

@@ -186,3 +186,14 @@ def test_pdf_text_rejects_non_pdfs_and_huge_files(monkeypatch):
     assert r.status_code == 400
     r = client.post("/api/pdf-text", json={"data_b64": base64.b64encode(b"%PDF" + b"0" * 2_100_000).decode()})
     assert r.status_code == 413
+
+
+def test_huge_request_bodies_are_refused(monkeypatch):
+    # A 512 MB free server must not buffer arbitrarily large uploads.
+    client, _ = _client(monkeypatch)
+    big = '{"url": "", "resume_text": "' + "x" * 5_000_000 + '"}'
+    r = client.post("/api/tailor", content=big, headers={"content-type": "application/json"})
+    assert r.status_code == 413
+    # Chunked upload with no Content-Length must be cut off too.
+    r = client.post("/api/tailor", content=(b"x" * 1_000_000 for _ in range(5)), headers={"content-type": "application/json"})
+    assert r.status_code == 413
