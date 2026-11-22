@@ -9,14 +9,18 @@ If neither gives enough text, we raise FetchError and the UI asks the user
 to paste the job description instead.
 """
 
+import ipaddress
 import json
 import re
-from urllib.parse import urlparse
+import socket
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
 
 MIN_CHARS = 400  # anything shorter is probably a login wall or an empty JS shell
+MAX_BYTES = 3_000_000  # biggest real posting seen: ~0.7 MB (Lever)
+MAX_REDIRECTS = 5
 
 # Non-goal: Tailor does not scrape LinkedIn. Go straight to the paste fallback.
 BLOCKED_HOSTS = ("linkedin.com",)
@@ -72,19 +76,60 @@ def extract_text(html: str) -> str:
     return _clean(soup.get_text("\n"))
 
 
-def fetch_job_text(url: str) -> str:
-    host = urlparse(url).netloc.lower()
+def _resolve(host: str) -> set[str]:
+    return {info[4][0] for info in socket.getaddrinfo(host, None)}
+
+
+def _check_public_url(url: str) -> None:
+    """Refuse anything but http(s) links to public internet addresses.
+
+    On a public server, the job-URL box would otherwise let anyone make Tailor fetch
+    internal addresses (localhost, the cloud metadata service, private networks): SSRF.
+    """
+    parts = urlparse(url)
+    if parts.scheme not in ("http", "https"):
+        raise FetchError("Only http(s) links work.")
+    host = (parts.hostname or "").lower()
     if not host:
         raise FetchError("That doesn't look like a URL.")
     if any(host == h or host.endswith("." + h) for h in BLOCKED_HOSTS):
         raise FetchError("Tailor doesn't scrape LinkedIn.")  # UI adds the "paste instead" prompt
     try:
-        resp = httpx.get(url, headers={"User-Agent": USER_AGENT}, follow_redirects=True, timeout=15)
-    except httpx.HTTPError as e:
-        raise FetchError(f"Couldn't reach the page ({type(e).__name__}).") from e
-    if resp.status_code != 200:
-        raise FetchError(f"The page returned HTTP {resp.status_code}.")
-    text = extract_text(resp.text)
+        ips = _resolve(host)
+    except (socket.gaierror, UnicodeError) as e:
+        raise FetchError("Couldn't find that website.") from e
+    for ip in ips:
+        addr = ipaddress.ip_address(ip.split("%")[0])
+        if addr.version == 6 and addr.ipv4_mapped:
+            addr = addr.ipv4_mapped
+        if not addr.is_global:
+            raise FetchError("That link points to a private or local address, which Tailor won't fetch.")
+
+
+def fetch_job_text(url: str, transport: httpx.BaseTransport | None = None) -> str:
+    # Follow redirects by hand so every hop gets the same public-address check.
+    with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=15, follow_redirects=False, transport=transport) as client:
+        for _ in range(MAX_REDIRECTS + 1):
+            _check_public_url(url)
+            try:
+                with client.stream("GET", url) as resp:
+                    if resp.is_redirect:
+                        url = urljoin(url, resp.headers.get("location", ""))
+                        continue
+                    if resp.status_code != 200:
+                        raise FetchError(f"The page returned HTTP {resp.status_code}.")
+                    body = b""
+                    for chunk in resp.iter_bytes():
+                        body += chunk
+                        if len(body) >= MAX_BYTES:  # don't download huge files
+                            break
+                    html = body[:MAX_BYTES].decode(resp.encoding or "utf-8", errors="replace")
+                    break
+            except httpx.HTTPError as e:
+                raise FetchError(f"Couldn't reach the page ({type(e).__name__}).") from e
+        else:
+            raise FetchError("Too many redirects.")
+    text = extract_text(html)
     if len(text) < MIN_CHARS:
         raise FetchError("The page loaded but had almost no readable text (probably blocked or JavaScript-only).")
     return text[:20000]  # cap what we send to the model

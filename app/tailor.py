@@ -76,7 +76,8 @@ def tailor(job_text: str, base_resume: str, base_cover_letter: str) -> dict:
     except httpx.HTTPError as e:
         raise TailorError(f"OpenRouter request failed ({type(e).__name__}).") from e
     if resp.status_code != 200:
-        raise TailorError(f"OpenRouter returned HTTP {resp.status_code}: {resp.text[:300]}")
+        print(f"[tailor] OpenRouter HTTP {resp.status_code}: {resp.text[:500]}", flush=True)  # server log only
+        raise TailorError(_public_error(resp.status_code, resp.text))
 
     body = resp.json()
     usage = body.get("usage", {})
@@ -95,6 +96,16 @@ def tailor(job_text: str, base_resume: str, base_cover_letter: str) -> dict:
     result["new_numbers"] = new_numbers(base_resume, result.get("tailored_resume", ""))
     result["resume_diff"] = word_diff(base_resume, result.get("tailored_resume", ""))
     return result
+
+
+def _public_error(status: int, body: str) -> str:
+    """What a visitor sees when OpenRouter fails. Never echo the body: it can include
+    account details (e.g. a link to the key's settings page)."""
+    if status == 402:
+        return "Tailor's AI budget is used up for now. Please try again later."
+    if status == 429:
+        return "The AI service is busy right now. Wait a minute and try again."
+    return f"The AI service had a problem (HTTP {status}). Try again in a moment."
 
 
 def _check_finished(choice: dict) -> None:

@@ -85,3 +85,37 @@ def test_cut_off_answer_gets_a_clear_error_not_invalid_json():
     with pytest.raises(TailorError, match="cut off"):
         _check_finished({"finish_reason": "length", "message": {"content": '{"tailored_resume": "# Jas'}})
     _check_finished({"finish_reason": "stop", "message": {"content": "{}"}})  # no error
+
+
+# ---------------------------------------------------------------- Build 3 security: SSRF
+# On a public server, the job-URL field must not be usable to reach private/internal addresses.
+@pytest.mark.parametrize("url", [
+    "http://127.0.0.1:8000/",                      # the server itself
+    "http://localhost/",                           # resolves to loopback
+    "http://169.254.169.254/latest/meta-data/",    # cloud metadata endpoint
+    "http://10.0.0.5/admin",                       # private network
+    "http://[::1]/",                               # IPv6 loopback
+    "file:///etc/passwd",                          # non-web scheme
+])
+def test_fetch_refuses_private_and_non_web_urls(url):
+    # Must be refused up front ("private"/"Only http"), not just fail because nothing answered.
+    with pytest.raises(FetchError, match="private|Only http"):
+        fetch_job_text(url)
+
+
+def test_fetch_refuses_redirect_into_private_network(monkeypatch):
+    import httpx
+    import jobfetch
+
+    monkeypatch.setattr(jobfetch, "_resolve", lambda host: {"93.184.216.34"} if host == "jobs.example.com" else {"10.0.0.1"})
+    transport = httpx.MockTransport(lambda req: httpx.Response(302, headers={"location": "http://internal.example/secret"}))
+    with pytest.raises(FetchError, match="private"):
+        fetch_job_text("https://jobs.example.com/job/1", transport=transport)
+
+
+def test_upstream_error_details_are_not_shown_to_visitors():
+    # OpenRouter's 402 body includes a link with an ID for the account's key. Visitors must not see it.
+    from tailor import _public_error
+
+    msg = _public_error(402, '{"error":{"message":"visit https://openrouter.ai/workspaces/default/keys/3a61217cc651"}}')
+    assert "openrouter.ai/workspaces" not in msg and "3a61217cc651" not in msg
