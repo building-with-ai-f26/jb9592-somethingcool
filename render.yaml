@@ -1,0 +1,25 @@
+# Render Blueprint for Tailor. Render reads this file when you create the service
+# (Dashboard -> New -> Blueprint) and on every push to main (auto-deploy).
+services:
+  - type: web
+    name: tailor
+    runtime: python
+    plan: free                 # sleeps after ~15 min idle; first visit then takes ~30-60 s
+    rootDir: app
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.14.0          # same version the tests run on locally
+      - key: OPENROUTER_API_KEY
+        sync: false            # secret: entered in the Render dashboard, never in git
+      - key: POSTHOG_KEY
+        sync: false            # public phc_ key, also entered in the dashboard
+      - key: POSTHOG_HOST
+        value: https://us.i.posthog.com
+      - key: RATE_LIMIT_PER_HOUR
+        value: "5"
+      - key: DAILY_RUN_CAP
+        value: "100"
