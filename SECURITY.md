@@ -69,7 +69,7 @@ The owner's real resume PDFs in `app/data/` are gitignored, so the live server o
 | Per visitor (by IP) | 5 requests/hour to the AI route (`RATE_LIMIT_PER_HOUR`); 30/hour to the PDF reader |
 | Whole site | 100 AI runs/day (`DAILY_RUN_CAP`), about $5/day at about $0.05/run |
 | Request size | 4 MB per request (checked while the upload streams in), resume 15k characters, cover letter 10k, job text 20k, PDF 2 MB / 10 pages |
-| OpenRouter account | Credit limit on the API key: **[confirm: $__ set on openrouter.ai/settings/keys]** |
+| OpenRouter account | Credit limit on the API key: **$20** (set on openrouter.ai/settings/keys). Even if every other limit fails, total spend stops there |
 
 ## 6. Dependency audit
 
